@@ -10,7 +10,8 @@ describe('Execution Protection', () => {
       const result = await env.exec('recurse');
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('maximum recursion depth exceeded');
+      expect(result.stderr).toContain('maximum recursion depth');
+      expect(result.stderr).toContain('exceeded');
     });
 
     it('should allow reasonable recursion depth', async () => {
@@ -30,7 +31,8 @@ describe('Execution Protection', () => {
       const result = await env.exec('myinfinite');
 
       expect(result.stderr).toContain('myinfinite');
-      expect(result.stderr).toContain('maximum recursion depth exceeded');
+      expect(result.stderr).toContain('maximum recursion depth');
+      expect(result.stderr).toContain('exceeded');
     });
   });
 
@@ -95,6 +97,39 @@ describe('Execution Protection', () => {
       // Exit code could be 1 or 2 depending on which limit is hit first
       expect(result.exitCode).not.toBe(0);
       expect(result.stderr.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('configurable limits', () => {
+    it('should allow custom recursion depth', async () => {
+      const env = new BashEnv({ maxCallDepth: 5 });
+      await env.exec('recurse() { recurse; }');
+      const result = await env.exec('recurse');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('(5)');
+      expect(result.stderr).toContain('maxCallDepth');
+    });
+
+    it('should allow custom loop iterations', async () => {
+      const env = new BashEnv({ maxLoopIterations: 50 });
+      const result = await env.exec('while true; do echo x; done');
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('(50)');
+      expect(result.stderr).toContain('maxLoopIterations');
+    });
+
+    it('should allow higher limits when needed', async () => {
+      // With default limit of 100, this would fail
+      // But with higher limit, it should succeed
+      const env = new BashEnv({ maxLoopIterations: 200 });
+      let cmd = 'for i in';
+      for (let i = 0; i < 150; i++) cmd += ' x';
+      cmd += '; do echo $i; done';
+      const result = await env.exec(cmd);
+
+      expect(result.exitCode).toBe(0);
     });
   });
 });

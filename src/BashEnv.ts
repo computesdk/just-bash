@@ -33,6 +33,11 @@ import { treeCommand } from './commands/tree/tree.js';
 import { statCommand } from './commands/stat/stat.js';
 import { duCommand } from './commands/du/du.js';
 
+// Default protection limits
+const DEFAULT_MAX_CALL_DEPTH = 100;
+const DEFAULT_MAX_COMMAND_COUNT = 10000;
+const DEFAULT_MAX_LOOP_ITERATIONS = 10000;
+
 export interface BashEnvOptions {
   /**
    * Initial files to populate the virtual filesystem.
@@ -53,11 +58,19 @@ export interface BashEnvOptions {
    * Defaults to VirtualFs if not provided.
    */
   fs?: IFileSystem;
+  /**
+   * Maximum function call/recursion depth. Default: 100
+   */
+  maxCallDepth?: number;
+  /**
+   * Maximum number of commands per exec call. Default: 10000
+   */
+  maxCommandCount?: number;
+  /**
+   * Maximum iterations per loop (for/while/until). Default: 10000
+   */
+  maxLoopIterations?: number;
 }
-
-// Protection limits
-const MAX_CALL_DEPTH = 100;
-const MAX_COMMAND_COUNT = 10000;
 
 export class BashEnv {
   private fs: IFileSystem;
@@ -73,6 +86,10 @@ export class BashEnv {
   // Protection against endless execution
   private callDepth: number = 0;
   private commandCount: number = 0;
+  // Configurable limits
+  private maxCallDepth: number;
+  private maxCommandCount: number;
+  private maxLoopIterations: number;
 
   constructor(options: BashEnvOptions = {}) {
     // Use provided filesystem or create a new VirtualFs
@@ -88,6 +105,11 @@ export class BashEnv {
       ...options.env
     };
     this.parser = new ShellParser(this.env);
+
+    // Initialize protection limits
+    this.maxCallDepth = options.maxCallDepth ?? DEFAULT_MAX_CALL_DEPTH;
+    this.maxCommandCount = options.maxCommandCount ?? DEFAULT_MAX_COMMAND_COUNT;
+    this.maxLoopIterations = options.maxLoopIterations ?? DEFAULT_MAX_LOOP_ITERATIONS;
 
     // Create essential directories for VirtualFs (only for default layout)
     if (fs instanceof VirtualFs && this.useDefaultLayout) {
@@ -164,10 +186,10 @@ export class BashEnv {
 
     // Protection against too many commands
     this.commandCount++;
-    if (this.commandCount > MAX_COMMAND_COUNT) {
+    if (this.commandCount > this.maxCommandCount) {
       return {
         stdout: '',
-        stderr: 'bash: maximum command count exceeded (possible infinite loop)\n',
+        stderr: `bash: maximum command count (${this.maxCommandCount}) exceeded (possible infinite loop). Increase with maxCommandCount option.\n`,
         exitCode: 1,
       };
     }
@@ -441,11 +463,10 @@ export class BashEnv {
     let stderr = '';
     let exitCode = 0;
     let iterations = 0;
-    const maxIterations = 10000;
 
     for (const item of items) {
-      if (iterations++ >= maxIterations) {
-        return { stdout, stderr: stderr + 'bash: for loop: too many iterations\n', exitCode: 1 };
+      if (iterations++ >= this.maxLoopIterations) {
+        return { stdout, stderr: stderr + `bash: for loop: too many iterations (${this.maxLoopIterations}). Increase with maxLoopIterations option.\n`, exitCode: 1 };
       }
 
       // Set the loop variable
@@ -488,11 +509,10 @@ export class BashEnv {
     let stderr = '';
     let exitCode = 0;
     let iterations = 0;
-    const maxIterations = 10000;
 
     while (true) {
-      if (iterations++ >= maxIterations) {
-        return { stdout, stderr: stderr + 'bash: while loop: too many iterations\n', exitCode: 1 };
+      if (iterations++ >= this.maxLoopIterations) {
+        return { stdout, stderr: stderr + `bash: while loop: too many iterations (${this.maxLoopIterations}). Increase with maxLoopIterations option.\n`, exitCode: 1 };
       }
 
       // Evaluate the condition
@@ -535,11 +555,10 @@ export class BashEnv {
     let stderr = '';
     let exitCode = 0;
     let iterations = 0;
-    const maxIterations = 10000;
 
     while (true) {
-      if (iterations++ >= maxIterations) {
-        return { stdout, stderr: stderr + 'bash: until loop: too many iterations\n', exitCode: 1 };
+      if (iterations++ >= this.maxLoopIterations) {
+        return { stdout, stderr: stderr + `bash: until loop: too many iterations (${this.maxLoopIterations}). Increase with maxLoopIterations option.\n`, exitCode: 1 };
       }
 
       // Evaluate the condition
@@ -668,11 +687,11 @@ export class BashEnv {
     if (funcBody) {
       // Protection against infinite recursion
       this.callDepth++;
-      if (this.callDepth > MAX_CALL_DEPTH) {
+      if (this.callDepth > this.maxCallDepth) {
         this.callDepth--;
         return {
           stdout: '',
-          stderr: `bash: ${expandedCommand}: maximum recursion depth exceeded\n`,
+          stderr: `bash: ${expandedCommand}: maximum recursion depth (${this.maxCallDepth}) exceeded. Increase with maxCallDepth option.\n`,
           exitCode: 1,
         };
       }

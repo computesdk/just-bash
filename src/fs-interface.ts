@@ -5,11 +5,13 @@ export interface FileEntry {
   type: 'file';
   content: string;
   mode: number;
+  mtime: Date;
 }
 
 export interface DirectoryEntry {
   type: 'directory';
   mode: number;
+  mtime: Date;
 }
 
 export type FsEntry = FileEntry | DirectoryEntry;
