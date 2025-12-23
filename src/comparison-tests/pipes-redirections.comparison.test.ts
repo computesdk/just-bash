@@ -278,3 +278,69 @@ describe('Command Chaining - Real Bash Comparison', () => {
     });
   });
 });
+
+describe('Input Redirection (<) - Real Bash Comparison', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = await createTestDir();
+  });
+
+  afterEach(async () => {
+    await cleanupTestDir(testDir);
+  });
+
+  describe('basic stdin redirection', () => {
+    it('should redirect file to cat stdin', async () => {
+      const env = await setupFiles(testDir, {
+        'input.txt': 'hello world\n',
+      });
+      await compareOutputs(env, testDir, 'cat < input.txt');
+    });
+
+    it('should redirect file to grep stdin', async () => {
+      const env = await setupFiles(testDir, {
+        'input.txt': 'apple\nbanana\napricot\ncherry\n',
+      });
+      await compareOutputs(env, testDir, 'grep ^a < input.txt');
+    });
+
+    it('should redirect file to sort stdin', async () => {
+      const env = await setupFiles(testDir, {
+        'input.txt': 'cherry\napple\nbanana\n',
+      });
+      await compareOutputs(env, testDir, 'sort < input.txt');
+    });
+
+    it('should redirect file to wc stdin', async () => {
+      const env = await setupFiles(testDir, {
+        'input.txt': 'line1\nline2\nline3\n',
+      });
+      await compareOutputs(env, testDir, 'wc -l < input.txt');
+    });
+  });
+
+  describe('stdin redirection with output redirection', () => {
+    it('should combine input and output redirection', async () => {
+      const env = await setupFiles(testDir, {
+        'input.txt': 'cherry\napple\nbanana\n',
+      });
+
+      await env.exec('sort < input.txt > output.txt');
+      await runRealBash('sort < input.txt > output.txt', testDir);
+
+      const bashEnvContent = await env.readFile(path.join(testDir, 'output.txt'));
+      const realContent = await fs.readFile(path.join(testDir, 'output.txt'), 'utf-8');
+      expect(bashEnvContent).toBe(realContent);
+    });
+  });
+
+  describe('stdin redirection error handling', () => {
+    it('should error on missing input file', async () => {
+      const env = await setupFiles(testDir, {});
+      const result = await env.exec('cat < nonexistent.txt');
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('No such file');
+    });
+  });
+});

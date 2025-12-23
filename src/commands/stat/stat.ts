@@ -53,12 +53,14 @@ export const statCommand: Command = {
         if (format) {
           // Handle custom format
           let output = format;
+          const modeOctal = stat.mode.toString(8);
+          const modeStr = formatModeString(stat.mode, stat.isDirectory);
           output = output.replace(/%n/g, file); // file name
           output = output.replace(/%N/g, `'${file}'`); // quoted file name
           output = output.replace(/%s/g, String(stat.size)); // size
           output = output.replace(/%F/g, stat.isDirectory ? 'directory' : 'regular file'); // file type
-          output = output.replace(/%a/g, '644'); // access rights (octal)
-          output = output.replace(/%A/g, stat.isDirectory ? 'drwxr-xr-x' : '-rw-r--r--'); // access rights
+          output = output.replace(/%a/g, modeOctal); // access rights (octal)
+          output = output.replace(/%A/g, modeStr); // access rights (human readable)
           output = output.replace(/%u/g, '1000'); // user ID
           output = output.replace(/%U/g, 'user'); // user name
           output = output.replace(/%g/g, '1000'); // group ID
@@ -66,9 +68,11 @@ export const statCommand: Command = {
           stdout += output + '\n';
         } else {
           // Default format
+          const modeOctal = stat.mode.toString(8).padStart(4, '0');
+          const modeStr = formatModeString(stat.mode, stat.isDirectory);
           stdout += `  File: ${file}\n`;
           stdout += `  Size: ${stat.size}\t\tBlocks: ${Math.ceil(stat.size / 512)}\n`;
-          stdout += `Access: ${stat.isDirectory ? '(0755/drwxr-xr-x)' : '(0644/-rw-r--r--)'}\n`;
+          stdout += `Access: (${modeOctal}/${modeStr})\n`;
           stdout += `Modify: ${stat.mtime.toISOString()}\n`;
         }
       } catch {
@@ -80,3 +84,19 @@ export const statCommand: Command = {
     return { stdout, stderr, exitCode: hasError ? 1 : 0 };
   },
 };
+
+function formatModeString(mode: number, isDirectory: boolean): string {
+  const typeChar = isDirectory ? 'd' : '-';
+  const perms = [
+    (mode & 0o400) ? 'r' : '-',
+    (mode & 0o200) ? 'w' : '-',
+    (mode & 0o100) ? 'x' : '-',
+    (mode & 0o040) ? 'r' : '-',
+    (mode & 0o020) ? 'w' : '-',
+    (mode & 0o010) ? 'x' : '-',
+    (mode & 0o004) ? 'r' : '-',
+    (mode & 0o002) ? 'w' : '-',
+    (mode & 0o001) ? 'x' : '-',
+  ];
+  return typeChar + perms.join('');
+}

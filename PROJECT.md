@@ -181,7 +181,13 @@ Redirection & composition (used constantly)
 
 xargs — build argument lists
 
-## Implementation phase 9
+## Implementation phase 10
 
 - Implement ln, hard and soft-links in the virtual fs
 - Should we have a global help command?
+
+## Implementation phase 11
+
+- Add awk comparison tests
+- Add awk tests to the agent scenarios
+- add a bash command and common aliases like /bin/sh that can run shell scripts from the command line and from files

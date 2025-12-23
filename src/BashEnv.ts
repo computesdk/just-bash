@@ -32,6 +32,13 @@ import { envCommand, printenvCommand } from './commands/env/env.js';
 import { treeCommand } from './commands/tree/tree.js';
 import { statCommand } from './commands/stat/stat.js';
 import { duCommand } from './commands/du/du.js';
+import { awkCommand } from './commands/awk/awk.js';
+import { chmodCommand } from './commands/chmod/chmod.js';
+import { clearCommand } from './commands/clear/clear.js';
+import { aliasCommand, unaliasCommand } from './commands/alias/alias.js';
+import { historyCommand } from './commands/history/history.js';
+import { lnCommand } from './commands/ln/ln.js';
+import { readlinkCommand } from './commands/readlink/readlink.js';
 
 // Default protection limits
 const DEFAULT_MAX_CALL_DEPTH = 100;
@@ -163,6 +170,14 @@ export class BashEnv {
     this.registerCommand(treeCommand);
     this.registerCommand(statCommand);
     this.registerCommand(duCommand);
+    this.registerCommand(awkCommand);
+    this.registerCommand(chmodCommand);
+    this.registerCommand(clearCommand);
+    this.registerCommand(aliasCommand);
+    this.registerCommand(unaliasCommand);
+    this.registerCommand(historyCommand);
+    this.registerCommand(lnCommand);
+    this.registerCommand(readlinkCommand);
   }
 
   registerCommand(command: Command): void {
@@ -634,6 +649,18 @@ export class BashEnv {
   ): Promise<ExecResult> {
     if (!command) {
       return { stdout: '', stderr: '', exitCode: 0 };
+    }
+
+    // Handle stdin redirection (<) - must be processed BEFORE command execution
+    for (const redir of redirections) {
+      if (redir.type === 'stdin' && redir.target) {
+        try {
+          const filePath = this.resolvePath(redir.target);
+          stdin = await this.fs.readFile(filePath);
+        } catch {
+          return { stdout: '', stderr: `bash: ${redir.target}: No such file or directory\n`, exitCode: 1 };
+        }
+      }
     }
 
     // Check for compound commands (if statements collected by parser)

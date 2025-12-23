@@ -3,6 +3,7 @@ import {
   FsEntry,
   FileEntry,
   DirectoryEntry,
+  SymlinkEntry,
   FsStat,
   MkdirOptions,
   RmOptions,
@@ -10,7 +11,7 @@ import {
 } from './fs-interface.js';
 
 // Re-export for backwards compatibility
-export type { FileEntry, DirectoryEntry, FsEntry, FsStat, IFileSystem };
+export type { FileEntry, DirectoryEntry, SymlinkEntry, FsEntry, FsStat, IFileSystem };
 
 export interface FsData {
   [path: string]: FsEntry;
@@ -92,7 +93,23 @@ export class VirtualFs implements IFileSystem {
   // Async public API
   async readFile(path: string): Promise<string> {
     const normalized = this.normalizePath(path);
-    const entry = this.data.get(normalized);
+    let entry = this.data.get(normalized);
+    let currentPath = normalized;
+
+    if (!entry) {
+      throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+    }
+
+    // Follow symlinks
+    const seen = new Set<string>();
+    while (entry && entry.type === 'symlink') {
+      if (seen.has(currentPath)) {
+        throw new Error(`ELOOP: too many levels of symbolic links, open '${path}'`);
+      }
+      seen.add(currentPath);
+      currentPath = this.resolveSymlink(currentPath, entry.target);
+      entry = this.data.get(currentPath);
+    }
 
     if (!entry) {
       throw new Error(`ENOENT: no such file or directory, open '${path}'`);
@@ -126,10 +143,20 @@ export class VirtualFs implements IFileSystem {
 
   async stat(path: string): Promise<FsStat> {
     const normalized = this.normalizePath(path);
-    const entry = this.data.get(normalized);
+    let entry = this.data.get(normalized);
 
     if (!entry) {
       throw new Error(`ENOENT: no such file or directory, stat '${path}'`);
+    }
+
+    // Follow symlinks
+    if (entry.type === 'symlink') {
+      const targetPath = this.resolveSymlink(normalized, entry.target);
+      const targetEntry = this.data.get(targetPath);
+      if (!targetEntry) {
+        throw new Error(`ENOENT: no such file or directory, stat '${path}'`);
+      }
+      entry = targetEntry;
     }
 
     // Calculate size: for files, it's the content length; for directories, it's 0
@@ -138,10 +165,54 @@ export class VirtualFs implements IFileSystem {
     return {
       isFile: entry.type === 'file',
       isDirectory: entry.type === 'directory',
+      isSymbolicLink: false, // stat follows symlinks, so this is always false
       mode: entry.mode,
       size,
       mtime: entry.mtime || new Date(),
     };
+  }
+
+  async lstat(path: string): Promise<FsStat> {
+    const normalized = this.normalizePath(path);
+    const entry = this.data.get(normalized);
+
+    if (!entry) {
+      throw new Error(`ENOENT: no such file or directory, lstat '${path}'`);
+    }
+
+    // For symlinks, return symlink info (don't follow)
+    if (entry.type === 'symlink') {
+      return {
+        isFile: false,
+        isDirectory: false,
+        isSymbolicLink: true,
+        mode: entry.mode,
+        size: entry.target.length,
+        mtime: entry.mtime || new Date(),
+      };
+    }
+
+    // Calculate size: for files, it's the content length; for directories, it's 0
+    const size = entry.type === 'file' && entry.content ? entry.content.length : 0;
+
+    return {
+      isFile: entry.type === 'file',
+      isDirectory: entry.type === 'directory',
+      isSymbolicLink: false,
+      mode: entry.mode,
+      size,
+      mtime: entry.mtime || new Date(),
+    };
+  }
+
+  // Helper to resolve symlink target paths
+  private resolveSymlink(symlinkPath: string, target: string): string {
+    if (target.startsWith('/')) {
+      return this.normalizePath(target);
+    }
+    // Relative target: resolve from symlink's directory
+    const dir = this.dirname(symlinkPath);
+    return this.normalizePath(dir === '/' ? '/' + target : dir + '/' + target);
   }
 
   async mkdir(path: string, options?: MkdirOptions): Promise<void> {
@@ -274,5 +345,79 @@ export class VirtualFs implements IFileSystem {
     }
     const combined = base === '/' ? '/' + path : base + '/' + path;
     return this.normalizePath(combined);
+  }
+
+  // Change file/directory permissions
+  async chmod(path: string, mode: number): Promise<void> {
+    const normalized = this.normalizePath(path);
+    const entry = this.data.get(normalized);
+
+    if (!entry) {
+      throw new Error(`ENOENT: no such file or directory, chmod '${path}'`);
+    }
+
+    entry.mode = mode;
+  }
+
+  // Create a symbolic link
+  async symlink(target: string, linkPath: string): Promise<void> {
+    const normalized = this.normalizePath(linkPath);
+
+    if (this.data.has(normalized)) {
+      throw new Error(`EEXIST: file already exists, symlink '${linkPath}'`);
+    }
+
+    this.ensureParentDirs(normalized);
+    this.data.set(normalized, {
+      type: 'symlink',
+      target,
+      mode: 0o777,
+      mtime: new Date(),
+    });
+  }
+
+  // Create a hard link
+  async link(existingPath: string, newPath: string): Promise<void> {
+    const existingNorm = this.normalizePath(existingPath);
+    const newNorm = this.normalizePath(newPath);
+
+    const entry = this.data.get(existingNorm);
+    if (!entry) {
+      throw new Error(`ENOENT: no such file or directory, link '${existingPath}'`);
+    }
+
+    if (entry.type !== 'file') {
+      throw new Error(`EPERM: operation not permitted, link '${existingPath}'`);
+    }
+
+    if (this.data.has(newNorm)) {
+      throw new Error(`EEXIST: file already exists, link '${newPath}'`);
+    }
+
+    this.ensureParentDirs(newNorm);
+    // For hard links, we create a copy (simulating inode sharing)
+    // In a real fs, they'd share the same inode
+    this.data.set(newNorm, {
+      type: 'file',
+      content: entry.content,
+      mode: entry.mode,
+      mtime: entry.mtime,
+    });
+  }
+
+  // Read the target of a symbolic link
+  async readlink(path: string): Promise<string> {
+    const normalized = this.normalizePath(path);
+    const entry = this.data.get(normalized);
+
+    if (!entry) {
+      throw new Error(`ENOENT: no such file or directory, readlink '${path}'`);
+    }
+
+    if (entry.type !== 'symlink') {
+      throw new Error(`EINVAL: invalid argument, readlink '${path}'`);
+    }
+
+    return entry.target;
   }
 }

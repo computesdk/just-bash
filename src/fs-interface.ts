@@ -14,7 +14,14 @@ export interface DirectoryEntry {
   mtime: Date;
 }
 
-export type FsEntry = FileEntry | DirectoryEntry;
+export interface SymlinkEntry {
+  type: 'symlink';
+  target: string;  // The path this symlink points to
+  mode: number;
+  mtime: Date;
+}
+
+export type FsEntry = FileEntry | DirectoryEntry | SymlinkEntry;
 
 /**
  * Stat result from the filesystem
@@ -22,6 +29,7 @@ export type FsEntry = FileEntry | DirectoryEntry;
 export interface FsStat {
   isFile: boolean;
   isDirectory: boolean;
+  isSymbolicLink: boolean;
   mode: number;
   size: number;
   mtime: Date;
@@ -124,6 +132,40 @@ export interface IFileSystem {
    * Optional - implementations may return empty array if not supported
    */
   getAllPaths(): string[];
+
+  /**
+   * Change file/directory permissions
+   * @throws Error if path doesn't exist
+   */
+  chmod(path: string, mode: number): Promise<void>;
+
+  /**
+   * Create a symbolic link
+   * @param target - The path the symlink should point to
+   * @param linkPath - The path where the symlink will be created
+   * @throws Error if linkPath already exists
+   */
+  symlink(target: string, linkPath: string): Promise<void>;
+
+  /**
+   * Create a hard link
+   * @param existingPath - The existing file to link to
+   * @param newPath - The path where the new link will be created
+   * @throws Error if existingPath doesn't exist or newPath already exists
+   */
+  link(existingPath: string, newPath: string): Promise<void>;
+
+  /**
+   * Read the target of a symbolic link
+   * @throws Error if path doesn't exist or is not a symlink
+   */
+  readlink(path: string): Promise<string>;
+
+  /**
+   * Get file/directory information without following symlinks
+   * @throws Error if path doesn't exist
+   */
+  lstat(path: string): Promise<FsStat>;
 }
 
 /**
