@@ -496,7 +496,7 @@ This document details the options and behaviors that are **not available** in Ba
 
 ### find
 
-**Supported:** `-name`, `-iname`, `-path`, `-ipath`, `-type`, `-empty`, `-maxdepth`, `-mindepth`, `-not`, `!`, `-a`, `-and`, `-o`, `-or`
+**Supported:** `-name`, `-iname`, `-path`, `-ipath`, `-type`, `-empty`, `-maxdepth`, `-mindepth`, `-not`, `!`, `-a`, `-and`, `-o`, `-or`, `-exec ... \;`, `-exec ... +`, `--help`
 
 | Missing Primary | Description |
 |----------------|-------------|
@@ -513,7 +513,6 @@ This document details the options and behaviors that are **not available** in Ba
 
 | Missing Action | Description |
 |----------------|-------------|
-| `-exec ... \;` | Execute command |
 | `-execdir ... \;` | Execute in directory |
 | `-delete` | Delete files |
 | `-print0` | Null-separated output |
@@ -522,7 +521,6 @@ This document details the options and behaviors that are **not available** in Ba
 | `-quit` | Exit immediately |
 
 **Behavior Differences:**
-- **No `-exec` support** (major limitation)
 - No time-based filtering
 - No permission/ownership filtering
 - No `-print0` for safe xargs usage
@@ -764,10 +762,9 @@ This document details the options and behaviors that are **not available** in Ba
 ### Most Limited Implementations
 1. **awk** - Missing arrays, control structures, functions
 2. **sed** - No hold space, branching, or advanced commands
-3. **find** - No `-exec`, time filters, or permissions
+3. **find** - No time filters or permissions (but `-exec` is supported)
 4. **env** - Cannot execute commands (core functionality missing)
-5. **mv** - No flags supported at all
-6. **touch** - Only creates files, doesn't update timestamps
+5. **touch** - Only creates files, doesn't update timestamps
 
 ### Common Missing Features Across Commands
 - Verbose output (`-v`)
@@ -790,15 +787,15 @@ This prioritized list focuses on features most useful for AI coding agents like 
 
 ### Priority 1: Critical (High Impact, Frequently Used)
 
-| Feature | Command | Why It Matters |
-|---------|---------|----------------|
-| `-exec` support | `find` | Run commands on found files (format, lint, refactor). Core workflow. |
-| `--exclude`, `--exclude-dir` | `grep` | Skip `node_modules`, `.git`, `build/` - essential for large codebases |
-| Control structures (`if/else/for/while`) | `awk` | Parse structured output, process build logs, aggregate data |
-| Arrays | `awk` | Aggregate data, count occurrences, build reports |
-| Accept flags | `mv` | Need `-n` (no-clobber) for safe file operations |
-| `-f` (case-insensitive) | `sort` | Sort filenames, identifiers consistently |
-| `-L` (files without match) | `grep` | Find files missing imports, licenses, patterns |
+| Feature | Command | Why It Matters | Status |
+|---------|---------|----------------|--------|
+| `-exec` support | `find` | Run commands on found files (format, lint, refactor). Core workflow. | ✅ Done |
+| `--exclude`, `--exclude-dir` | `grep` | Skip `node_modules`, `.git`, `build/` - essential for large codebases | ✅ Done |
+| Control structures (`if/else/for/while`) | `awk` | Parse structured output, process build logs, aggregate data | |
+| Arrays | `awk` | Aggregate data, count occurrences, build reports | |
+| Accept flags | `mv` | Need `-n` (no-clobber) for safe file operations | ✅ Done |
+| `-f` (case-insensitive) | `sort` | Sort filenames, identifiers consistently | ✅ Done |
+| `-L` (files without match) | `grep` | Find files missing imports, licenses, patterns | ✅ Done |
 
 ### Priority 2: High (Common Workflows)
 
@@ -848,25 +845,25 @@ This prioritized list focuses on features most useful for AI coding agents like 
 
 These have high value-to-effort ratio:
 
-| Feature | Command | Effort | Impact |
-|---------|---------|--------|--------|
-| Accept flags (even if ignored) | `mv` | Low | High - stops errors |
-| `-f` case-insensitive | `sort` | Low | Medium |
-| `-i` case-insensitive | `uniq` | Low | Medium |
-| `-L` files without match | `grep` | Low | High |
-| `--exclude` patterns | `grep` | Medium | Very High |
-| `-n` no-clobber | `cp`, `mv` | Low | Medium |
-| Real file sizes | `ls -l` | Medium | High |
-| `-E` extended regex | `sed` | Low | Medium |
+| Feature | Command | Effort | Impact | Status |
+|---------|---------|--------|--------|--------|
+| Accept flags (even if ignored) | `mv` | Low | High - stops errors | ✅ Done |
+| `-f` case-insensitive | `sort` | Low | Medium | ✅ Done |
+| `-i` case-insensitive | `uniq` | Low | Medium | |
+| `-L` files without match | `grep` | Low | High | ✅ Done |
+| `--exclude` patterns | `grep` | Medium | Very High | ✅ Done |
+| `-n` no-clobber | `cp`, `mv` | Low | Medium | ✅ `mv` done |
+| Real file sizes | `ls -l` | Medium | High | |
+| `-E` extended regex | `sed` | Low | Medium | |
 
 ### Recommended Implementation Order
 
-**Phase 1: Unblock Core Workflows**
-1. [ ] `mv` - Accept basic flags (`-f`, `-n`, `-v`)
-2. [ ] `grep --exclude`, `--exclude-dir`
-3. [ ] `grep -L` (files without matches)
-4. [ ] `find -exec {} \;` and `-exec {} +`
-5. [ ] `sort -f` (case-insensitive)
+**Phase 1: Unblock Core Workflows** ✅ COMPLETED
+1. [x] `mv` - Accept basic flags (`-f`, `-n`, `-v`)
+2. [x] `grep --exclude`, `--exclude-dir`
+3. [x] `grep -L` (files without matches)
+4. [x] `find -exec {} \;` and `-exec {} +`
+5. [x] `sort -f` (case-insensitive)
 
 **Phase 2: Enhanced Text Processing**
 6. [ ] `awk` control structures (`if/else/for/while`)
