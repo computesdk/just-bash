@@ -21,7 +21,8 @@ describe("ls", () => {
       cwd: "/",
     });
     const result = await env.exec("ls");
-    expect(result.stdout).toBe("file.txt\n");
+    // /bin and /usr always exist for PATH-based command resolution
+    expect(result.stdout).toBe("bin\nfile.txt\nusr\n");
     expect(result.stderr).toBe("");
   });
 

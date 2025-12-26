@@ -27,7 +27,12 @@ import type { IFileSystem } from "../fs-interface.js";
 import type { SecureFetch } from "../network/index.js";
 import { parseArithmeticExpression } from "../parser/arithmetic-parser.js";
 import { Parser } from "../parser/parser.js";
-import type { CommandContext, CommandRegistry, ExecResult } from "../types.js";
+import type {
+  Command,
+  CommandContext,
+  CommandRegistry,
+  ExecResult,
+} from "../types.js";
 import { evaluateArithmetic, evaluateArithmeticSync } from "./arithmetic.js";
 import {
   handleBreak,
@@ -835,16 +840,14 @@ export class Interpreter {
       return evaluateTestArgs(this.ctx, testArgs);
     }
 
-    // External commands
-    let cmdName = commandName;
-    if (commandName.includes("/")) {
-      cmdName = commandName.split("/").pop() || commandName;
-    }
-
-    const cmd = this.ctx.commands.get(cmdName);
-    if (!cmd) {
+    // External commands - resolve via PATH
+    const resolved = await this.resolveCommand(commandName);
+    if (!resolved) {
       return failure(`bash: ${commandName}: command not found\n`, 127);
     }
+    const { cmd, path: cmdPath } = resolved;
+    // cmdPath is available for future use (e.g., $0 in scripts)
+    void cmdPath;
 
     const cmdCtx: CommandContext = {
       fs: this.ctx.fs,
@@ -862,6 +865,88 @@ export class Interpreter {
     } catch (error) {
       return failure(`${commandName}: ${getErrorMessage(error)}\n`);
     }
+  }
+
+  // ===========================================================================
+  // PATH-BASED COMMAND RESOLUTION
+  // ===========================================================================
+
+  /**
+   * Resolve a command name to its implementation via PATH lookup.
+   * Returns the command and its resolved path, or null if not found.
+   *
+   * Resolution order:
+   * 1. If command contains "/", resolve as a path
+   * 2. Search PATH directories for the command file
+   * 3. Fall back to registry lookup (for non-VirtualFs filesystems like OverlayFs)
+   */
+  private async resolveCommand(
+    commandName: string,
+  ): Promise<{ cmd: Command; path: string } | null> {
+    // If command contains "/", it's a path - resolve directly
+    if (commandName.includes("/")) {
+      const resolvedPath = this.ctx.fs.resolvePath(
+        this.ctx.state.cwd,
+        commandName,
+      );
+      // Check if file exists
+      if (!(await this.ctx.fs.exists(resolvedPath))) {
+        return null;
+      }
+      // Extract command name from path
+      const cmdName = resolvedPath.split("/").pop() || commandName;
+      const cmd = this.ctx.commands.get(cmdName);
+      if (!cmd) return null;
+      return { cmd, path: resolvedPath };
+    }
+
+    // Search PATH directories
+    const pathEnv = this.ctx.state.env.PATH || "/bin:/usr/bin";
+    const pathDirs = pathEnv.split(":");
+
+    for (const dir of pathDirs) {
+      if (!dir) continue;
+      const fullPath = `${dir}/${commandName}`;
+      if (await this.ctx.fs.exists(fullPath)) {
+        // File exists - look up command implementation
+        const cmd = this.ctx.commands.get(commandName);
+        if (cmd) {
+          return { cmd, path: fullPath };
+        }
+      }
+    }
+
+    // Fallback: check registry directly only if /bin doesn't exist
+    // This maintains backward compatibility for OverlayFs and other non-VirtualFs
+    // where command stubs aren't created, while still respecting PATH for VirtualFs
+    const binExists = await this.ctx.fs.exists("/bin");
+    if (!binExists) {
+      const cmd = this.ctx.commands.get(commandName);
+      if (cmd) {
+        return { cmd, path: `/bin/${commandName}` };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Find all paths for a command in PATH (for `which -a`).
+   */
+  async findCommandInPath(commandName: string): Promise<string[]> {
+    const paths: string[] = [];
+    const pathEnv = this.ctx.state.env.PATH || "/bin:/usr/bin";
+    const pathDirs = pathEnv.split(":");
+
+    for (const dir of pathDirs) {
+      if (!dir) continue;
+      const fullPath = `${dir}/${commandName}`;
+      if (await this.ctx.fs.exists(fullPath)) {
+        paths.push(fullPath);
+      }
+    }
+
+    return paths;
   }
 
   // ===========================================================================

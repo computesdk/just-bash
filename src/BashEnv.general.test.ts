@@ -615,15 +615,17 @@ describe("BashEnv General", () => {
     it("should not create default layout when files are provided", async () => {
       const env = new BashEnv({ files: { "/test.txt": "content" } });
       expect(env.getCwd()).toBe("/");
-      const result = await env.exec("ls /bin");
-      expect(result.exitCode).not.toBe(0); // /bin doesn't exist
+      // /bin always exists for PATH-based command resolution, but /home/user doesn't
+      const result = await env.exec("ls /home/user");
+      expect(result.exitCode).not.toBe(0); // /home/user doesn't exist
       expect(result.stderr).toContain("No such file or directory");
     });
 
     it("should not create default layout when cwd is provided", async () => {
       const env = new BashEnv({ cwd: "/custom" });
-      const result = await env.exec("ls /bin");
-      expect(result.exitCode).not.toBe(0); // /bin doesn't exist
+      // /bin always exists for PATH-based command resolution, but /home/user doesn't
+      const result = await env.exec("ls /home/user");
+      expect(result.exitCode).not.toBe(0); // /home/user doesn't exist
       expect(result.stderr).toContain("No such file or directory");
     });
   });

@@ -65,7 +65,8 @@ export type CommandName =
   | "seq"
   | "expr"
   | "html-to-markdown"
-  | "help";
+  | "help"
+  | "which";
 
 /** Network command names (only available when network is configured) */
 export type NetworkCommandName = "curl";
@@ -319,6 +320,12 @@ const commandLoaders: LazyCommandDef<CommandName>[] = [
   {
     name: "help",
     load: async () => (await import("./help/help.js")).helpCommand,
+  },
+
+  // PATH utilities
+  {
+    name: "which",
+    load: async () => (await import("./which/which.js")).whichCommand,
   },
 ];
 

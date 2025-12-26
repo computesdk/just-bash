@@ -148,13 +148,17 @@ export class BashEnv {
       loopDepth: 0,
     };
 
-    // Create essential directories for VirtualFs (only for default layout)
-    if (fs instanceof VirtualFs && this.useDefaultLayout) {
+    // Create essential directories for VirtualFs
+    if (fs instanceof VirtualFs) {
       try {
-        fs.mkdirSync("/home/user", { recursive: true });
+        // Always create /bin for PATH-based command resolution
         fs.mkdirSync("/bin", { recursive: true });
         fs.mkdirSync("/usr/bin", { recursive: true });
-        fs.mkdirSync("/tmp", { recursive: true });
+        // Create additional directories only for default layout
+        if (this.useDefaultLayout) {
+          fs.mkdirSync("/home/user", { recursive: true });
+          fs.mkdirSync("/tmp", { recursive: true });
+        }
       } catch {
         // Ignore errors - directories may already exist
       }
@@ -182,7 +186,8 @@ export class BashEnv {
 
   registerCommand(command: Command): void {
     this.commands.set(command.name, command);
-    if (this.fs instanceof VirtualFs && this.useDefaultLayout) {
+    // Always create command stubs in /bin for PATH-based resolution
+    if (this.fs instanceof VirtualFs) {
       try {
         this.fs.writeFileSync(
           `/bin/${command.name}`,
