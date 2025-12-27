@@ -65,7 +65,7 @@ function processContent(
 
   // Persistent hold space across all lines
   let holdSpace = "";
-  let substitutionMade = false;
+  let _substitutionMade = false;
 
   // Convert to SedExecutionLimits format
   const sedLimits: SedExecutionLimits | undefined = limits
@@ -79,7 +79,7 @@ function processContent(
       holdSpace: holdSpace,
       lineNumber: lineIndex + 1,
       totalLines,
-      substitutionMade,
+      substitutionMade: false, // Reset for each new line (T command behavior)
     };
 
     // Create execution context for N command
@@ -88,12 +88,31 @@ function processContent(
       currentLineIndex: lineIndex,
     };
 
-    const linesConsumed = executeCommands(commands, state, ctx, sedLimits);
-    lineIndex += linesConsumed;
+    // Execute commands with support for D command cycle restart
+    let cycleIterations = 0;
+    const maxCycleIterations = 10000;
+    let totalLinesConsumed = 0;
+    do {
+      cycleIterations++;
+      if (cycleIterations > maxCycleIterations) {
+        // Prevent infinite loops
+        break;
+      }
+
+      state.restartCycle = false;
+      const linesConsumed = executeCommands(commands, state, ctx, sedLimits);
+      totalLinesConsumed += linesConsumed;
+
+      // Update context for next iteration (so N command reads from correct position)
+      ctx.currentLineIndex += linesConsumed;
+    } while (state.restartCycle && !state.deleted && !state.quit);
+
+    // Update main line index with total lines consumed
+    lineIndex += totalLinesConsumed;
 
     // Preserve state for next line
     holdSpace = state.holdSpace;
-    substitutionMade = state.substitutionMade;
+    _substitutionMade = state.substitutionMade;
 
     // Output line numbers from = command
     for (const ln of state.lineNumberOutput) {
@@ -243,7 +262,7 @@ export const sedCommand: Command = {
     }
 
     // Parse all scripts
-    const { commands, error } = parseMultipleScripts(scripts);
+    const { commands, error } = parseMultipleScripts(scripts, _extendedRegex);
     if (error) {
       return {
         stdout: "",

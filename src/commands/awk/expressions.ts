@@ -1,7 +1,9 @@
 import {
+  awkGensub,
   awkGsub,
   awkIndex,
   awkLength,
+  awkMatch,
   awkSplit,
   awkSprintf,
   awkSub,
@@ -42,6 +44,10 @@ export function evaluateExpression(
         return awkSub(args, ctx, evaluateExpression);
       case "gsub":
         return awkGsub(args, ctx, evaluateExpression);
+      case "match":
+        return awkMatch(args, ctx, evaluateExpression);
+      case "gensub":
+        return awkGensub(args, ctx, evaluateExpression);
       case "tolower":
         return awkTolower(args, ctx, evaluateExpression);
       case "toupper":
@@ -78,6 +84,31 @@ export function evaluateExpression(
         ctx.vars._srand_seed = seed;
         return seed;
       }
+      // Unimplemented functions - error with clear message
+      case "systime":
+      case "mktime":
+      case "strftime":
+        throw new Error(`function '${funcName}()' is not implemented`);
+      // Unsupported functions - security/sandboxing reasons
+      case "system":
+        throw new Error(
+          "system() is not supported - shell execution not allowed in sandboxed environment",
+        );
+      case "close":
+        throw new Error(
+          "close() is not supported - file operations not allowed",
+        );
+      case "fflush":
+        throw new Error(
+          "fflush() is not supported - file operations not allowed",
+        );
+      case "nextfile":
+        throw new Error("nextfile is not supported - use 'next' instead");
+    }
+
+    // Check for user-defined function
+    if (ctx.functions?.[funcName]) {
+      return executeUserFunction(funcName, args, ctx);
     }
   }
 
@@ -110,11 +141,15 @@ export function evaluateExpression(
     }
   }
 
-  // NR, NF
+  // Built-in variables
   if (expr === "NR") return ctx.NR;
   if (expr === "NF") return ctx.NF;
+  if (expr === "FNR") return ctx.FNR;
   if (expr === "FS") return ctx.FS;
   if (expr === "OFS") return ctx.OFS;
+  if (expr === "FILENAME") return ctx.FILENAME;
+  if (expr === "RSTART") return ctx.RSTART;
+  if (expr === "RLENGTH") return ctx.RLENGTH;
 
   // Variable (defined)
   if (ctx.vars[expr] !== undefined) {
@@ -128,6 +163,14 @@ export function evaluateExpression(
     return condition
       ? evaluateExpression(ternaryMatch[2].trim(), ctx)
       : evaluateExpression(ternaryMatch[3].trim(), ctx);
+  }
+
+  // Power operator (highest precedence among arithmetic) - check for ^ and **
+  const powerMatch = expr.match(/^(.+?)\s*(\^|\*\*)\s*(.+)$/);
+  if (powerMatch) {
+    const left = Number(evaluateExpression(powerMatch[1], ctx));
+    const right = Number(evaluateExpression(powerMatch[3], ctx));
+    return left ** right;
   }
 
   // Arithmetic - check BEFORE concatenation
@@ -149,14 +192,19 @@ export function evaluateExpression(
     }
   }
 
-  // Arithmetic without spaces for simple identifiers
+  // Arithmetic without spaces for simple identifiers - handles chained operations like x*x*x
+  // Parse from left to right for all arithmetic operators
   const arithMatchNoSpace = expr.match(
-    /^([a-zA-Z_]\w*|\$\d+|\d+(?:\.\d+)?)\s*([*/%])\s*([a-zA-Z_]\w*|\$\d+|\d+(?:\.\d+)?)$/,
+    /^([a-zA-Z_]\w*|\$\d+|\d+(?:\.\d+)?)\s*([+\-*/%])\s*(.+)$/,
   );
   if (arithMatchNoSpace) {
     const left = Number(evaluateExpression(arithMatchNoSpace[1], ctx));
     const right = Number(evaluateExpression(arithMatchNoSpace[3], ctx));
     switch (arithMatchNoSpace[2]) {
+      case "+":
+        return left + right;
+      case "-":
+        return left - right;
       case "*":
         return left * right;
       case "/":
@@ -432,4 +480,67 @@ function compareValues(
     }
   }
   return false;
+}
+
+const DEFAULT_MAX_FUNCTION_DEPTH = 100;
+
+// Execute a user-defined function
+function executeUserFunction(
+  name: string,
+  args: string[],
+  ctx: AwkContext,
+): string | number {
+  const func = ctx.functions[name];
+  if (!func) {
+    throw new Error(`awk: undefined function '${name}'`);
+  }
+
+  // Track recursion depth
+  const depthKey = "__func_depth__";
+  const currentDepth = (ctx.vars[depthKey] as number) || 0;
+  if (currentDepth >= DEFAULT_MAX_FUNCTION_DEPTH) {
+    throw new Error(
+      `awk: function '${name}' exceeded maximum recursion depth (${DEFAULT_MAX_FUNCTION_DEPTH})`,
+    );
+  }
+  ctx.vars[depthKey] = currentDepth + 1;
+
+  // Save current local variables
+  const savedVars: Record<string, string | number | undefined> = {};
+  for (const param of func.params) {
+    savedVars[param] = ctx.vars[param];
+  }
+
+  // Bind parameters
+  for (let i = 0; i < func.params.length; i++) {
+    if (i < args.length) {
+      ctx.vars[func.params[i]] = evaluateExpression(args[i], ctx);
+    } else {
+      ctx.vars[func.params[i]] = "";
+    }
+  }
+
+  // Execute function body - import executeAwkAction dynamically to avoid circular deps
+  // For now, we evaluate the body as an expression (limited but avoids circular import)
+  let result: string | number = "";
+  try {
+    // Look for return statement
+    const returnMatch = func.body.match(/return\s+(.+)/);
+    if (returnMatch) {
+      result = evaluateExpression(returnMatch[1].trim(), ctx);
+    }
+  } finally {
+    // Restore saved variables
+    for (const param of func.params) {
+      const saved = savedVars[param];
+      if (saved !== undefined) {
+        ctx.vars[param] = saved;
+      } else {
+        delete ctx.vars[param];
+      }
+    }
+    ctx.vars[depthKey] = currentDepth;
+  }
+
+  return result;
 }
