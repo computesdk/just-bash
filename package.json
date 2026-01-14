@@ -1,6 +1,6 @@
 {
   "name": "just-bash",
-  "version": "2.4.3",
+  "version": "2.4.4",
   "description": "A simulated bash environment with virtual filesystem",
   "repository": {
     "type": "git",
@@ -50,10 +50,10 @@
   "scripts": {
     "build": "rm -rf dist && tsc && pnpm build:lib && pnpm build:browser && pnpm build:cli && pnpm build:shell && pnpm build:clean && sed '1,/^-->/d' AGENTS.npm.md > dist/AGENTS.md",
     "build:clean": "find dist -name '*.test.js' -delete && find dist -name '*.test.d.ts' -delete",
-    "build:lib": "esbuild dist/index.js --bundle --splitting --platform=node --format=esm --minify --outdir=dist/bundle --chunk-names=chunks/[name]-[hash] --external:diff --external:minimatch --external:sprintf-js --external:turndown",
+    "build:lib": "esbuild dist/index.js --bundle --splitting --platform=node --format=esm --minify --outdir=dist/bundle --chunk-names=chunks/[name]-[hash] --external:diff --external:minimatch --external:sprintf-js --external:turndown --external:sql.js",
     "build:browser": "esbuild dist/browser.js --bundle --platform=browser --format=esm --minify --outfile=dist/bundle/browser.js --external:diff --external:minimatch --external:sprintf-js --external:turndown --external:node:* --define:__BROWSER__=true",
-    "build:cli": "esbuild dist/cli/just-bash.js --bundle --splitting --platform=node --format=esm --minify --outdir=dist/bin --entry-names=[name] --chunk-names=chunks/[name]-[hash] --banner:js='#!/usr/bin/env node'",
-    "build:shell": "esbuild dist/cli/shell.js --bundle --splitting --platform=node --format=esm --minify --outdir=dist/bin/shell --entry-names=[name] --chunk-names=chunks/[name]-[hash] --banner:js='#!/usr/bin/env node'",
+    "build:cli": "esbuild dist/cli/just-bash.js --bundle --splitting --platform=node --format=esm --minify --outdir=dist/bin --entry-names=[name] --chunk-names=chunks/[name]-[hash] --banner:js='#!/usr/bin/env node' --external:sql.js",
+    "build:shell": "esbuild dist/cli/shell.js --bundle --splitting --platform=node --format=esm --minify --outdir=dist/bin/shell --entry-names=[name] --chunk-names=chunks/[name]-[hash] --banner:js='#!/usr/bin/env node' --external:sql.js",
     "prepublishOnly": "pnpm validate",
     "validate": "pnpm lint && pnpm knip && pnpm typecheck &&  pnpm build && pnpm test:run && pnpm test:dist",
     "typecheck": "tsc --noEmit",

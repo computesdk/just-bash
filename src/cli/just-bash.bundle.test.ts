@@ -93,4 +93,14 @@ describe("just-bash bundled binary", () => {
     expect(result.stdout).not.toContain("should not print");
     expect(result.exitCode).toBe(1);
   });
+
+  it("should lazy-load commands (sqlite3 with external sql.js)", async () => {
+    const result = await runBin([
+      "-c",
+      'sqlite3 :memory: "SELECT 1 + 2 AS result"',
+    ]);
+    expect(result.stdout).toBe("3\n");
+    expect(result.stderr).toBe("");
+    expect(result.exitCode).toBe(0);
+  });
 });
