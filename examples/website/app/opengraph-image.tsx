@@ -13,6 +13,10 @@ const ASCII_ART = `   _           _   _               _
 |__/`;
 
 export default async function Image() {
+  const font = await fetch(
+    new URL("https://fonts.gstatic.com/s/ibmplexmono/v19/-F63fjptAgt5VM-kVkqdyU8n5ig.ttf")
+  ).then((res) => res.arrayBuffer());
+
   return new ImageResponse(
     (
       <div
@@ -22,16 +26,16 @@ export default async function Image() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "monospace",
-          padding: "60px",
+          alignItems: "flex-start",
+          justifyContent: "flex-start",
+          fontFamily: "IBM Plex Mono",
+          padding: "60px 80px",
         }}
       >
-        <pre
+<pre
           style={{
             color: "#fff",
-            fontSize: "32px",
+            fontSize: "28px",
             lineHeight: "1.2",
             margin: 0,
             whiteSpace: "pre",
@@ -43,41 +47,60 @@ export default async function Image() {
           style={{
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
+            alignItems: "flex-start",
             marginTop: "40px",
-            gap: "16px",
+            gap: "12px",
           }}
         >
           <div
             style={{
               color: "#888",
-              fontSize: "28px",
+              fontSize: "24px",
             }}
           >
             A sandboxed bash interpreter for AI agents
           </div>
           <div
             style={{
-              color: "#22d3ee",
-              fontSize: "36px",
-              fontWeight: "bold",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginTop: "8px",
             }}
           >
-            npm install just-bash
+            <span style={{ color: "#666" }}>$</span>
+            <span
+              style={{
+                color: "#22d3ee",
+                fontSize: "32px",
+              }}
+            >
+              npm install just-bash
+            </span>
           </div>
         </div>
         <div
           style={{
             position: "absolute",
-            bottom: "40px",
-            color: "#666",
-            fontSize: "20px",
+            bottom: "50px",
+            left: "80px",
+            color: "#555",
+            fontSize: "18px",
           }}
         >
-          Pure TypeScript • In-memory filesystem • No WASM
+          Pure TypeScript | In-memory filesystem
         </div>
       </div>
     ),
-    { ...size }
+    {
+      ...size,
+      fonts: [
+        {
+          name: "IBM Plex Mono",
+          data: font,
+          style: "normal",
+        },
+      ],
+    }
   );
 }
