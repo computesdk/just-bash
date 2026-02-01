@@ -29,6 +29,7 @@ export class InputHandler {
     this.textarea.setAttribute("autocorrect", "off");
     this.textarea.setAttribute("spellcheck", "false");
     this.textarea.setAttribute("tabindex", "0");
+    this.textarea.setAttribute("aria-label", "Terminal input");
     // Prevent zoom on iOS
     this.textarea.style.fontSize = "16px";
     container.appendChild(this.textarea);

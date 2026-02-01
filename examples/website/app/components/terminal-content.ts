@@ -17,6 +17,8 @@ Custom commands:
 
 Or try any bash command: ls, cat, echo, grep, awk, jq, sed, etc.
 Type 'help' for a list of all built-in commands.
+
+Created by Vercel Labs - https://vercel.com/
 `;
 
 export const CMD_INSTALL = `npm install just-bash

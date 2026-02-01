@@ -106,6 +106,9 @@ export default function Home() {
       </noscript>
       <TerminalData />
       {mounted ? <TerminalComponent /> : null}
+      <a href="https://vercel.com" target="_blank" hidden id="credits">
+        Created by Vercel Labs
+      </a>
     </>
   );
 }

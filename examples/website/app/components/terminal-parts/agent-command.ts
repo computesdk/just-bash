@@ -70,7 +70,8 @@ export function createAgentCommand(term: TerminalWriter) {
         return { stdout: "", stderr: "Error: No response body\n", exitCode: 1 };
       }
 
-      let fullText = "";
+      let lineBuffer = ""; // Buffer for streaming complete lines
+      let fullText = ""; // Track all text for message history
       const toolCallsMap = new Map<string, { toolName: string; args: unknown; result?: string }>();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -168,10 +169,21 @@ export function createAgentCommand(term: TerminalWriter) {
           try {
             const data = JSON.parse(jsonStr);
 
-            // Collect text (don't stream - ASCII art breaks when streamed in chunks)
+            // Stream text line-by-line (complete lines only to preserve ASCII art)
             if (data.type === "text-delta" && data.delta) {
-              fullText += data.delta;
-              resetThinkingTimer(); // Got content, reset timer
+              fullText += data.delta; // Track for message history
+              lineBuffer += data.delta;
+
+              // Check for complete lines to stream
+              const lastNewline = lineBuffer.lastIndexOf("\n");
+              if (lastNewline !== -1) {
+                clearThinking();
+                const completeLines = lineBuffer.slice(0, lastNewline + 1);
+                lineBuffer = lineBuffer.slice(lastNewline + 1); // Keep partial line
+                term.write(formatForTerminal(formatMarkdown(completeLines)));
+              } else {
+                resetThinkingTimer(); // No complete line yet, reset timer
+              }
             }
             // Handle tool input - show header immediately
             else if (data.type === "tool-input-available" && data.toolCallId) {
@@ -269,12 +281,10 @@ export function createAgentCommand(term: TerminalWriter) {
       // Clean up thinking timer (don't restart - we're done)
       clearThinking(false);
 
-      // Write collected text at the end (not streamed to avoid ASCII art rendering issues)
-      if (fullText) {
-        term.write(formatForTerminal(formatMarkdown(fullText)));
-        if (!fullText.endsWith("\n")) {
-          term.write("\r\n");
-        }
+      // Write any remaining partial line that didn't end with newline
+      if (lineBuffer) {
+        term.write(formatForTerminal(formatMarkdown(lineBuffer)));
+        term.write("\r\n");
       }
 
       // Add assistant message to history (only text parts)

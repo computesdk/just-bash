@@ -95,10 +95,15 @@ export class LiteTerminal {
     // Create terminal structure
     container.innerHTML = "";
     container.className = "lite-terminal";
+    container.setAttribute("role", "region");
+    container.setAttribute("aria-label", "Terminal");
 
     // Output area
     this.outputElement = document.createElement("pre");
     this.outputElement.className = "lite-terminal-output";
+    this.outputElement.setAttribute("role", "log");
+    this.outputElement.setAttribute("aria-live", "off"); // Don't auto-announce (too noisy)
+    this.outputElement.setAttribute("aria-label", "Terminal output");
     container.appendChild(this.outputElement);
 
     // Cursor element (inline within text flow)
