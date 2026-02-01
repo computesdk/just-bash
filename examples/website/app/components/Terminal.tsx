@@ -71,8 +71,8 @@ export default function TerminalComponent() {
       cwd: "/home/user",
     });
 
-    // Set up input handling
-    const inputHandler = createInputHandler(term, bash);
+    // Set up input handling with file autocomplete
+    const inputHandler = createInputHandler(term, bash, { files });
 
     // Show welcome after fit completes
     requestAnimationFrame(() => {
