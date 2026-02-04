@@ -60,15 +60,11 @@ describe("just-bash CLI", () => {
       expect(result.exitCode).toBe(0);
     });
 
-    it(
-      "should show version with -v",
-      () => {
-        const result = runCli(["-v"]);
-        expect(result.stdout).toContain("just-bash");
-        expect(result.exitCode).toBe(0);
-      },
-      10000,
-    );
+    it("should show version with -v", () => {
+      const result = runCli(["-v"]);
+      expect(result.stdout).toContain("just-bash");
+      expect(result.exitCode).toBe(0);
+    }, 10000);
 
     it("should show version with --version", () => {
       const result = runCli(["--version"]);
